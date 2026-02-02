@@ -71,6 +71,17 @@ het install --claude
 het install --copilot
 ```
 
+**What `het install` does:**
+
+| CLI | Action |
+|-----|--------|
+| **Claude Code** | Adds a `PreToolUse` hook to `~/.claude/settings.json` that pipes tool invocations to `het evaluate --cli=claude-code` |
+| **GitHub Copilot** | Creates `~/.copilot/hooks/preToolUse.js` script that forwards tool invocations to `het evaluate --cli=copilot` |
+
+The hooks intercept every tool call (Bash, Write, Edit, Read, etc.) before execution and send them to the HET daemon for security evaluation. Based on the evaluation result, the tool call is allowed, blocked, or the user is prompted for confirmation.
+
+Use `het uninstall` to remove the hooks.
+
 ### Manual Hook Configuration
 
 If you prefer to configure hooks manually instead of using `het install`:
