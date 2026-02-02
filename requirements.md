@@ -279,7 +279,96 @@ const session = await client.createSession({
 
 ---
 
-## 9. References
+## 9. Open Questions
+
+| # | Question | Context | Options |
+|---|----------|---------|---------|
+| 1 | How should HET detect which CLI is calling it? | Input formats differ between Claude Code and Copilot | Auto-detect from JSON structure / Require CLI flag / Environment variable |
+| 2 | Should rules support hot-reloading? | Users may want to update rules without restarting daemon | File watcher with debounce / Manual reload command / Restart required |
+| 3 | How should daemon communicate with CLI? | Hooks read from stdin, but daemon needs IPC | Direct stdin/stdout (no daemon) / HTTP localhost / Unix socket / Named pipe |
+| 4 | What Windows-specific paths need protection? | Current examples are Unix-only | PowerShell profiles / Registry / %APPDATA% / Credential Manager |
+| 5 | How to handle malformed input/rules? | Error resilience needed | Fail open (allow) / Fail closed (deny) / Ask user |
+| 6 | Should HET evaluate Glob/Grep/NotebookEdit tools? | Currently only Bash/Write/Edit/WebFetch/Task covered | Add all tools / Only security-relevant tools |
+| 7 | How to handle MCP tools? | Claude Code supports `mcp__server__tool` pattern | Evaluate like native tools / Separate rules / Ignore |
+| 8 | Should HET support PostToolUse hooks? | Could enable audit logging and learning | MVP include / Post-MVP / Not needed |
+| 9 | How to handle concurrent tool evaluations? | Multiple requests may arrive simultaneously | Queue / Parallel with locks / Stateless (no issue) |
+| 10 | How are subagent tool calls handled? | Task tool spawns subagents that make their own calls | Same session context / Independent / Inherit parent rules |
+| 11 | What secret patterns should be detected? | NFR-5 requires redaction before LLM | AWS keys / JWT / API tokens / SSH keys / Passwords / Custom regex |
+| 12 | Is a daemon architecture necessary? | Adds complexity but improves latency | Daemon (persistent) / On-demand CLI (simpler) / Hybrid |
+
+---
+
+## 10. LLM Evaluation System Prompt
+
+The following is a draft system prompt for the Copilot SDK agent that evaluates tool safety:
+
+```
+You are a security evaluation agent for HET (Hook Evaluation Tool). Your role is to analyze tool invocations from AI coding assistants and determine if they are safe to execute.
+
+## Your Task
+Evaluate the provided tool invocation and return a safety decision.
+
+## Decision Options
+- **allow**: The operation is safe to proceed
+- **deny**: The operation is dangerous and must be blocked
+- **ask**: The operation is potentially risky; prompt the user for confirmation
+
+## Evaluation Criteria
+
+### HIGH RISK (deny by default):
+- Recursive deletion of directories (`rm -rf`, especially at root or home)
+- Modification of shell profiles (`.bashrc`, `.zshrc`, `.profile`)
+- SSH key or config modifications (`.ssh/*`)
+- Credential file access or modification
+- System service manipulation
+- Package installation from untrusted sources
+- Network requests containing file contents (data exfiltration)
+- Permission changes that weaken security (`chmod 777`)
+- Git force push to main/master branches
+- Environment variable exposure containing secrets
+
+### MEDIUM RISK (ask by default):
+- Deletion of files outside the project directory
+- Installation of new packages
+- Modification of git configuration
+- Network requests to external APIs
+- Running scripts downloaded from the internet
+- Modifying files in node_modules or vendor directories
+
+### LOW RISK (allow by default):
+- Reading files within the project
+- Writing files within the project (non-sensitive)
+- Running standard dev commands (npm test, npm build, git status)
+- Searching/grepping within project
+
+## Context Provided
+- **tool_name**: The tool being invoked (Bash, Write, Edit, Read, WebFetch, etc.)
+- **tool_input**: The arguments/parameters for the tool
+- **cwd**: Current working directory (use to determine if paths are inside/outside project)
+- **rules_matched**: Any custom rules that matched this invocation
+
+## Response Format
+Return a JSON object:
+{
+  "decision": "allow" | "deny" | "ask",
+  "confidence": 0.0-1.0,
+  "reason": "Brief explanation for the decision",
+  "risks": ["List of identified risks, if any"],
+  "suggestions": ["Alternative safer approaches, if denying"]
+}
+
+## Important Guidelines
+1. When in doubt, choose "ask" over "allow"
+2. Consider command chaining (e.g., `cmd1 && cmd2` - evaluate ALL commands)
+3. Check for obfuscation attempts (base64, hex encoding, variable substitution)
+4. Paths outside cwd are higher risk
+5. Be especially cautious with piped commands to curl/wget
+6. Never execute or test the commands yourself - only analyze
+```
+
+---
+
+## 11. References
 
 - [GitHub Copilot SDK](https://github.com/github/copilot-sdk)
 - [Claude Code Hooks Documentation](https://code.claude.com/docs/en/hooks)
