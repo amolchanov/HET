@@ -1,0 +1,20 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(winget install:*)",
+      "Bash(echo:*)",
+      "WebFetch(domain:github.com)",
+      "WebFetch(domain:docs.github.com)",
+      "Bash(git -C \"c:\\\\Repos\\\\HET\" log --oneline -10)",
+      "WebSearch",
+      "WebFetch(domain:github.blog)",
+      "WebFetch(domain:deepwiki.com)",
+      "Bash(micro -plugin install:*)",
+      "Bash(winget search:*)",
+      "Bash(git add:*)",
+      "Bash(git commit:*)",
+      "WebFetch(domain:docs.anthropic.com)",
+      "Bash(git checkout:*)"
+    ]
+  }
+}
