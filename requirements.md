@@ -301,49 +301,7 @@ const session = await client.createSession({
 
 ### 9.1 Architecture Options
 
-**Option A: Direct stdin/stdout (No Daemon)**
-```
-┌─────────────┐     stdin      ┌─────────────┐
-│  Claude     │ ──────────────►│    HET      │
-│  Code CLI   │                │   (spawn)   │
-│             │ ◄──────────────│             │
-└─────────────┘     stdout     └─────────────┘
-```
-- Pros: Simple, stateless
-- Cons: Cold start (~100-500ms), no cache, no concurrency
-- Latency: High
-
-**Option B: HTTP Localhost Daemon**
-```
-┌─────────────┐                ┌─────────────┐
-│  Claude     │  HTTP POST     │    HET      │
-│  Code CLI   │ ──────────────►│   Daemon    │
-│             │  :8765/eval    │  (always on)│
-│             │ ◄──────────────│             │
-└─────────────┘  JSON response └─────────────┘
-
-┌─────────────┐                      │
-│  Copilot    │ ─────────────────────┘
-│  CLI        │  (same endpoint)
-└─────────────┘
-```
-- Pros: Language-agnostic, debuggable (curl), shared cache
-- Cons: Port management, firewall issues
-- Latency: Low (~5-20ms)
-
-**Option C: Unix Socket / Named Pipe**
-```
-┌─────────────┐                ┌─────────────┐
-│  Claude     │   Unix socket  │    HET      │
-│  Code CLI   │ ──────────────►│   Daemon    │
-│             │  /tmp/het.sock │             │
-└─────────────┘ ◄──────────────└─────────────┘
-```
-- Pros: Fastest, no port conflicts, secure
-- Cons: Platform differences (Unix vs Windows named pipe)
-- Latency: Lowest (~1-5ms)
-
-**Option D: Hybrid (RECOMMENDED)**
+** Hybrid (RECOMMENDED)**
 ```
 ┌─────────────┐     stdin      ┌─────────────┐     socket     ┌─────────────┐
 │  Claude     │ ──────────────►│  het eval   │ ──────────────►│    HET      │
@@ -417,10 +375,16 @@ rules:
 ```
 
 **Timeout Strategy**:
-- Default: 10 seconds
+- Default: 30 seconds
 - If queue_depth × avg_time > remaining_timeout → return `ask` immediately
 - **Subagent mode**: Detect via `session_id` pattern, disable timeout for autonomous operation
 - **Self-learning**: Track actual times, adjust estimates
+
+**Context Isolation**:
+- Each request from the queue MUST reset the Copilot Agent context
+- No conversation history carried between evaluations
+- Prevents context pollution and ensures consistent evaluation
+- Each evaluation is stateless from LLM perspective (only rules/config persist)
 
 ---
 
