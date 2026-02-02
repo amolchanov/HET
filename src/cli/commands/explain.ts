@@ -38,7 +38,9 @@ export async function explainCommand(command: string): Promise<void> {
     const rules = mergeRules(globalRules, repoRules);
 
     console.log();
-    console.log(chalk.bold.blue('HET Security Analysis'));
+    console.log(chalk.red('  ╦ ╦╔═╗╔╦╗'));
+    console.log(chalk.red('  ╠═╣║╣  ║ ') + chalk.bold(' Security Analysis'));
+    console.log(chalk.red('  ╩ ╩╚═╝ ╩'));
     console.log('═'.repeat(50));
     console.log();
 

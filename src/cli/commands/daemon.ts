@@ -12,6 +12,22 @@ interface DaemonOptions {
   foreground?: boolean;
 }
 
+// ASCII art logo - HET means "NO" in Russian (НЕТ)
+const LOGO = `
+  ╦ ╦╔═╗╔╦╗
+  ╠═╣║╣  ║   ${chalk.dim('Security says')} ${chalk.red('НЕТ!')}
+  ╩ ╩╚═╝ ╩
+`;
+
+const LOGO_LARGE = `
+  ██╗  ██╗███████╗████████╗
+  ██║  ██║██╔════╝╚══██╔══╝
+  ███████║█████╗     ██║   
+  ██╔══██║██╔══╝     ██║   
+  ██║  ██║███████╗   ██║   
+  ╚═╝  ╚═╝╚══════╝   ╚═╝   
+`;
+
 /**
  * Daemon command - start the HET daemon
  */
@@ -19,9 +35,9 @@ export async function daemonCommand(options: DaemonOptions): Promise<void> {
   const port = options.port || DEFAULT_CONFIG.port;
   const host = options.host || DEFAULT_CONFIG.host;
 
-  console.log();
-  console.log(chalk.bold.blue('HET - Hook Evaluation Tool'));
-  console.log('─'.repeat(40));
+  console.log(chalk.red(LOGO_LARGE));
+  console.log(chalk.bold('  Hook Evaluation Tool') + chalk.dim(' - Security says ') + chalk.red.bold('НЕТ!'));
+  console.log(chalk.dim('  ─'.repeat(20)));
   console.log();
 
   const server = new HETServer();

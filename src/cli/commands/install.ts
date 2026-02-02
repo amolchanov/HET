@@ -169,7 +169,9 @@ function installCopilotHooks(options: InstallOptions): boolean {
  */
 export async function installCommand(options: InstallOptions): Promise<void> {
   console.log();
-  console.log(chalk.bold.blue('HET Hook Installation'));
+  console.log(chalk.red('  ╦ ╦╔═╗╔╦╗'));
+  console.log(chalk.red('  ╠═╣║╣  ║ ') + chalk.bold(' Hook Installation'));
+  console.log(chalk.red('  ╩ ╩╚═╝ ╩'));
   console.log('─'.repeat(40));
   console.log();
 
