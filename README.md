@@ -76,7 +76,7 @@ het install --copilot
 | CLI | Action |
 |-----|--------|
 | **Claude Code** | Adds a `PreToolUse` hook to `~/.claude/settings.json` that pipes tool invocations to `het evaluate --cli=claude-code` |
-| **GitHub Copilot** | Creates `~/.copilot/hooks/preToolUse.js` script that forwards tool invocations to `het evaluate --cli=copilot` |
+| **GitHub Copilot** | Creates `~/.copilot/hooks/hooks.json` with a `preToolUse` hook that forwards tool invocations to `het evaluate --cli=copilot` |
 
 The hooks intercept every tool call (Bash, Write, Edit, Read, etc.) before execution and send them to the HET daemon for security evaluation. Based on the evaluation result, the tool call is allowed, blocked, or the user is prompted for confirmation.
 
@@ -88,14 +88,14 @@ If you prefer to configure hooks manually instead of using `het install`:
 
 #### Claude Code CLI
 
-Add to `~/.claude/settings.json`:
+Add to `~/.claude/settings.json` (see [official docs](https://code.claude.com/docs/en/hooks)):
 
 ```json
 {
   "hooks": {
     "PreToolUse": [
       {
-        "matcher": {},
+        "matcher": "*",
         "hooks": [
           {
             "type": "command",
@@ -108,37 +108,31 @@ Add to `~/.claude/settings.json`:
 }
 ```
 
+> **Note:** The `matcher` must be a string (regex pattern). Use `"*"` to match all tools, or specify tools like `"Bash|Write|Edit|Read"`.
+
 #### GitHub Copilot CLI
 
-Create `~/.copilot/hooks/preToolUse.js`:
+Create `~/.copilot/hooks/hooks.json` (see [official docs](https://docs.github.com/en/copilot/reference/hooks-configuration)):
 
-```javascript
-#!/usr/bin/env node
-const { execSync } = require('child_process');
-
-let input = '';
-process.stdin.setEncoding('utf8');
-
-process.stdin.on('data', (chunk) => {
-  input += chunk;
-});
-
-process.stdin.on('end', () => {
-  try {
-    const result = execSync('het evaluate --cli=copilot', {
-      input,
-      encoding: 'utf8',
-      timeout: 30000,
-    });
-    if (result) process.stdout.write(result);
-    process.exit(0);
-  } catch (error) {
-    process.exit(0); // Fail open
+```json
+{
+  "version": 1,
+  "hooks": {
+    "preToolUse": [
+      {
+        "type": "command",
+        "bash": "het evaluate --cli=copilot",
+        "powershell": "het evaluate --cli=copilot",
+        "timeoutSec": 30
+      }
+    ]
   }
-});
+}
 ```
 
-On Unix/macOS, make it executable: `chmod +x ~/.copilot/hooks/preToolUse.js`
+The hook receives tool invocation JSON on stdin and expects a response:
+- Allow: `{"action": "approve"}`
+- Deny: `{"action": "deny", "reason": "Explanation here"}`
 
 ### 2. Start the Daemon
 
