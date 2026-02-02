@@ -1,4 +1,4 @@
-# HET - Hook Evaluation Tool
+# HET - Pre-Tool Use Hook Evaluation
 
 ![HET Logo](het-logo.png)
 
