@@ -77,15 +77,73 @@ export const DANGEROUS_PATTERNS = {
     { pattern: /nc\s+-[el]/, reason: 'Netcat listener (potential backdoor)', action: 'deny' as const },
     { pattern: /ssh-keygen.*-f.*\/root/, reason: 'Generating SSH keys for root', action: 'deny' as const },
   ],
+  powershell: [
+    // Destructive file operations
+    { pattern: /Remove-Item\s+.*-Recurse.*[\\\/]($|\s)/i, reason: 'Recursive delete at root', action: 'deny' as const },
+    { pattern: /Remove-Item\s+.*-Recurse.*\$env:USERPROFILE/i, reason: 'Recursive delete in user profile', action: 'ask' as const },
+    { pattern: /Remove-Item\s+.*-Recurse.*\$HOME/i, reason: 'Recursive delete in home directory', action: 'ask' as const },
+    { pattern: /rm\s+-r\s+-fo/i, reason: 'Force recursive delete', action: 'ask' as const },
+    { pattern: /del\s+.*\/s\s+.*\/q/i, reason: 'Silent recursive delete', action: 'ask' as const },
+    // Disk operations
+    { pattern: /Format-Volume/i, reason: 'Disk formatting', action: 'deny' as const },
+    { pattern: /Clear-Disk/i, reason: 'Disk clearing', action: 'deny' as const },
+    { pattern: /Initialize-Disk/i, reason: 'Disk initialization', action: 'deny' as const },
+    // Execution policy bypass
+    { pattern: /Set-ExecutionPolicy\s+.*Bypass/i, reason: 'Execution policy bypass', action: 'deny' as const },
+    { pattern: /Set-ExecutionPolicy\s+.*Unrestricted/i, reason: 'Unrestricted execution policy', action: 'ask' as const },
+    { pattern: /-ExecutionPolicy\s+Bypass/i, reason: 'Bypassing execution policy', action: 'ask' as const },
+    // Remote script execution
+    { pattern: /Invoke-Expression.*Invoke-WebRequest/i, reason: 'Executing remote script', action: 'ask' as const },
+    { pattern: /Invoke-Expression.*\(New-Object.*WebClient\)/i, reason: 'Executing downloaded content', action: 'ask' as const },
+    { pattern: /IEX\s*\(\s*\(New-Object/i, reason: 'IEX with WebClient (common malware pattern)', action: 'deny' as const },
+    { pattern: /IEX\s*\(Invoke-WebRequest/i, reason: 'IEX with web request', action: 'ask' as const },
+    { pattern: /DownloadString\s*\(/i, reason: 'Downloading and potentially executing string', action: 'ask' as const },
+    // Credential access
+    { pattern: /Get-Credential/i, reason: 'Credential prompt', action: 'ask' as const },
+    { pattern: /ConvertTo-SecureString.*-AsPlainText/i, reason: 'Converting plain text to secure string', action: 'ask' as const },
+    { pattern: /Get-StoredCredential/i, reason: 'Accessing stored credentials', action: 'ask' as const },
+    // Registry modifications
+    { pattern: /Set-ItemProperty.*HKLM:/i, reason: 'Modifying HKEY_LOCAL_MACHINE registry', action: 'deny' as const },
+    { pattern: /New-ItemProperty.*HKLM:/i, reason: 'Adding to HKEY_LOCAL_MACHINE registry', action: 'deny' as const },
+    { pattern: /Remove-ItemProperty.*HKLM:/i, reason: 'Removing from HKEY_LOCAL_MACHINE registry', action: 'deny' as const },
+    { pattern: /reg\s+add\s+HKLM/i, reason: 'Adding to HKLM registry via reg.exe', action: 'deny' as const },
+    // Service manipulation
+    { pattern: /Stop-Service\s+.*Windows/i, reason: 'Stopping Windows service', action: 'ask' as const },
+    { pattern: /Set-Service.*-StartupType\s+Disabled/i, reason: 'Disabling service', action: 'ask' as const },
+    { pattern: /New-Service/i, reason: 'Creating new service', action: 'ask' as const },
+    // Firewall
+    { pattern: /Set-NetFirewallProfile.*-Enabled\s+False/i, reason: 'Disabling firewall', action: 'deny' as const },
+    { pattern: /netsh\s+.*firewall.*disable/i, reason: 'Disabling firewall via netsh', action: 'deny' as const },
+    // Windows Defender
+    { pattern: /Set-MpPreference.*-DisableRealtimeMonitoring/i, reason: 'Disabling Windows Defender', action: 'deny' as const },
+    { pattern: /Add-MpPreference.*-ExclusionPath/i, reason: 'Adding Defender exclusion', action: 'ask' as const },
+    // Scheduled tasks
+    { pattern: /Register-ScheduledTask/i, reason: 'Creating scheduled task', action: 'ask' as const },
+    { pattern: /schtasks\s+\/create/i, reason: 'Creating scheduled task via schtasks', action: 'ask' as const },
+    // Git operations (same as bash)
+    { pattern: /git\s+push.*--force/i, reason: 'Force push can overwrite remote history', action: 'ask' as const },
+    { pattern: /git\s+reset\s+--hard/i, reason: 'Hard reset can lose uncommitted changes', action: 'ask' as const },
+    // Encoded commands
+    { pattern: /-EncodedCommand/i, reason: 'Executing encoded PowerShell command', action: 'ask' as const },
+    { pattern: /-enc\s+[A-Za-z0-9+\/=]+/i, reason: 'Executing encoded command', action: 'ask' as const },
+    // Admin elevation
+    { pattern: /Start-Process.*-Verb\s+RunAs/i, reason: 'Elevating to administrator', action: 'ask' as const },
+  ],
   write: [
-    { pathPattern: /\.ssh\/(authorized_keys|id_rsa|config)/, reason: 'Modification of SSH configuration', action: 'deny' as const },
+    { pathPattern: /\.ssh[\\\/](authorized_keys|id_rsa|config)/, reason: 'Modification of SSH configuration', action: 'deny' as const },
     { pathPattern: /\.(bashrc|zshrc|profile|bash_profile)$/, reason: 'Shell configuration modification', action: 'ask' as const },
     { pathPattern: /\.gitconfig$/, reason: 'Git configuration modification', action: 'ask' as const },
-    { pathPattern: /\/etc\//, reason: 'System configuration modification', action: 'deny' as const },
+    { pathPattern: /[\\\/]etc[\\\/]/, reason: 'System configuration modification', action: 'deny' as const },
     { pathPattern: /\.(env|env\.local|env\.production)$/, reason: 'Environment file modification', action: 'ask' as const },
-    { pathPattern: /\.aws\/credentials$/, reason: 'AWS credentials modification', action: 'deny' as const },
-    { pathPattern: /\.kube\/config$/, reason: 'Kubernetes config modification', action: 'deny' as const },
+    { pathPattern: /\.aws[\\\/]credentials$/, reason: 'AWS credentials modification', action: 'deny' as const },
+    { pathPattern: /\.kube[\\\/]config$/, reason: 'Kubernetes config modification', action: 'deny' as const },
     { pathPattern: /cron/, reason: 'Cron job modification', action: 'deny' as const },
+    // Windows-specific
+    { pathPattern: /Microsoft\.PowerShell_profile\.ps1$/i, reason: 'PowerShell profile modification', action: 'ask' as const },
+    { pathPattern: /\$PROFILE/i, reason: 'PowerShell profile modification', action: 'ask' as const },
+    { pathPattern: /System32[\\\/]/i, reason: 'System32 modification', action: 'deny' as const },
+    { pathPattern: /Windows[\\\/]System/i, reason: 'Windows system modification', action: 'deny' as const },
+    { pathPattern: /hosts$/i, reason: 'Hosts file modification', action: 'deny' as const },
   ],
   webfetch: [
     { pattern: /file:\/\//, reason: 'Local file access via URL', action: 'deny' as const },
@@ -93,11 +151,11 @@ export const DANGEROUS_PATTERNS = {
     { pattern: /localhost|127\.0\.0\.1/, reason: 'Local service access', action: 'ask' as const },
   ],
   read: [
-    { pathPattern: /\.ssh\/(id_rsa|id_ed25519|id_ecdsa)$/, reason: 'Reading SSH private keys', action: 'deny' as const },
-    { pathPattern: /\.aws\/credentials$/, reason: 'Reading AWS credentials', action: 'deny' as const },
+    { pathPattern: /\.ssh[\\\/](id_rsa|id_ed25519|id_ecdsa)$/, reason: 'Reading SSH private keys', action: 'deny' as const },
+    { pathPattern: /\.aws[\\\/]credentials$/, reason: 'Reading AWS credentials', action: 'deny' as const },
     { pathPattern: /\.netrc$/, reason: 'Reading .netrc credentials', action: 'deny' as const },
-    { pathPattern: /\/etc\/(passwd|shadow)$/, reason: 'Reading system password files', action: 'deny' as const },
-    { pathPattern: /\.kube\/config$/, reason: 'Reading Kubernetes config', action: 'ask' as const },
+    { pathPattern: /[\\\/]etc[\\\/](passwd|shadow)$/, reason: 'Reading system password files', action: 'deny' as const },
+    { pathPattern: /\.kube[\\\/]config$/, reason: 'Reading Kubernetes config', action: 'ask' as const },
     { pathPattern: /\.gnupg\//, reason: 'Reading GPG private data', action: 'deny' as const },
   ],
   glob: [

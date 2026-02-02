@@ -122,6 +122,27 @@ function checkBuiltInPatterns(toolName: ToolType, toolInput: Record<string, unkn
       break;
     }
 
+    case 'PowerShell': {
+      const command = (toolInput.command || toolInput.script || toolInput.code) as string;
+      if (!command) return { matched: false };
+
+      for (const { pattern, reason, action } of DANGEROUS_PATTERNS.powershell) {
+        if (pattern.test(command)) {
+          return {
+            matched: true,
+            result: {
+              decision: action,
+              reason,
+              confidence: 1.0,
+              matchedRule: 'builtin:powershell',
+              riskFactors: [reason],
+            },
+          };
+        }
+      }
+      break;
+    }
+
     case 'Write':
     case 'Edit': {
       const filePath = (toolInput.file_path || toolInput.filePath || toolInput.path) as string;

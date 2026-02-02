@@ -54,8 +54,8 @@
 - [x] Evaluate MCP tools (pattern `mcp__<server>__<tool>`)
 
 ### Multi-Language Support
-- [ ] FR-7: Bash script analysis
-- [ ] FR-7: PowerShell script analysis
+- [x] FR-7: Bash script analysis
+- [x] FR-7: PowerShell script analysis
 - [ ] FR-7: Python script analysis
 
 ### Secret Detection

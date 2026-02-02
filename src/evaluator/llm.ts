@@ -198,7 +198,8 @@ Analyze this invocation and provide your security assessment.`;
  */
 function getToolDescription(toolName: ToolType): string {
   const descriptions: Record<ToolType, string> = {
-    Bash: 'Executes shell commands on the user\'s system',
+    Bash: 'Executes shell commands on Unix/Linux/macOS systems',
+    PowerShell: 'Executes PowerShell commands on Windows systems',
     Write: 'Creates or overwrites files on the filesystem',
     Edit: 'Modifies existing files using string replacement',
     Read: 'Reads file contents from the filesystem',

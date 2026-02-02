@@ -105,6 +105,7 @@ function isValidAction(action: string): action is RuleAction {
 function isValidTool(tool: string): tool is ToolType {
   return [
     'Bash',
+    'PowerShell',
     'Write',
     'Edit',
     'Read',

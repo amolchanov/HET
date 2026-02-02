@@ -110,6 +110,9 @@ export async function quickTestCommand(
 ): Promise<void> {
   const toolMap: Record<string, ToolType> = {
     bash: 'Bash',
+    powershell: 'PowerShell',
+    ps: 'PowerShell',
+    pwsh: 'PowerShell',
     write: 'Write',
     edit: 'Edit',
     read: 'Read',
@@ -121,7 +124,7 @@ export async function quickTestCommand(
   const toolType = toolMap[tool.toLowerCase()];
   if (!toolType) {
     console.error(chalk.red(`Unknown tool type: ${tool}`));
-    console.log('Available tools: bash, write, edit, read, webfetch, websearch, task');
+    console.log('Available tools: bash, powershell (ps/pwsh), write, edit, read, webfetch, websearch, task');
     process.exit(1);
   }
 
@@ -129,6 +132,7 @@ export async function quickTestCommand(
   let toolInput: Record<string, unknown>;
   switch (toolType) {
     case 'Bash':
+    case 'PowerShell':
       toolInput = { command: input };
       break;
     case 'Write':

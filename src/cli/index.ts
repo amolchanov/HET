@@ -51,6 +51,16 @@ program
   });
 
 program
+  .command('test-powershell <command>')
+  .alias('test-ps')
+  .description('Test evaluation of a PowerShell command')
+  .option('-j, --json', 'Output as JSON')
+  .option('-v, --verbose', 'Verbose output')
+  .action(async (command: string, options) => {
+    await quickTestCommand('powershell', command, options);
+  });
+
+program
   .command('test-write <path>')
   .description('Test evaluation of a file write operation')
   .option('-j, --json', 'Output as JSON')

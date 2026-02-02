@@ -5,6 +5,7 @@
 // Tool types supported by HET
 export type ToolType =
   | 'Bash'
+  | 'PowerShell'
   | 'Write'
   | 'Edit'
   | 'Read'

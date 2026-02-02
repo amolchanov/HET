@@ -116,28 +116,41 @@ function normalizeToolName(name: string): ToolType | null {
   const normalized = name.toLowerCase();
 
   const mapping: Record<string, ToolType> = {
+    // Shell commands
     bash: 'Bash',
     shell: 'Bash',
     command: 'Bash',
+    // PowerShell (Copilot on Windows)
+    powershell: 'PowerShell',
+    pwsh: 'PowerShell',
+    ps: 'PowerShell',
+    ps1: 'PowerShell',
+    // File operations
     write: 'Write',
     writefile: 'Write',
     write_file: 'Write',
+    create: 'Write',
     edit: 'Edit',
     editfile: 'Edit',
     edit_file: 'Edit',
     read: 'Read',
     readfile: 'Read',
     read_file: 'Read',
+    view: 'Read',
+    // Search
     glob: 'Glob',
     grep: 'Grep',
     search: 'Grep',
+    // Web
     webfetch: 'WebFetch',
     web_fetch: 'WebFetch',
     fetch: 'WebFetch',
     websearch: 'WebSearch',
     web_search: 'WebSearch',
+    // Agents
     task: 'Task',
     agent: 'Task',
+    // Notebooks
     notebookedit: 'NotebookEdit',
     notebook_edit: 'NotebookEdit',
   };
