@@ -279,28 +279,218 @@ const session = await client.createSession({
 
 ---
 
-## 9. Open Questions
+## 9. Design Decisions (Resolved)
 
-| # | Question | Context | Options |
-|---|----------|---------|---------|
-| 1 | How should HET detect which CLI is calling it? | Input formats differ between Claude Code and Copilot | Auto-detect from JSON structure / Require CLI flag / Environment variable |
-| 2 | Should rules support hot-reloading? | Users may want to update rules without restarting daemon | File watcher with debounce / Manual reload command / Restart required |
-| 3 | How should daemon communicate with CLI? | Hooks read from stdin, but daemon needs IPC | Direct stdin/stdout (no daemon) / HTTP localhost / Unix socket / Named pipe |
-| 4 | What Windows-specific paths need protection? | Current examples are Unix-only | PowerShell profiles / Registry / %APPDATA% / Credential Manager |
-| 5 | How to handle malformed input/rules? | Error resilience needed | Fail open (allow) / Fail closed (deny) / Ask user |
-| 6 | Should HET evaluate Glob/Grep/NotebookEdit tools? | Currently only Bash/Write/Edit/WebFetch/Task covered | Add all tools / Only security-relevant tools |
-| 7 | How to handle MCP tools? | Claude Code supports `mcp__server__tool` pattern | Evaluate like native tools / Separate rules / Ignore |
-| 8 | Should HET support PostToolUse hooks? | Could enable audit logging and learning | MVP include / Post-MVP / Not needed |
-| 9 | How to handle concurrent tool evaluations? | Multiple requests may arrive simultaneously | Queue / Parallel with locks / Stateless (no issue) |
-| 10 | How are subagent tool calls handled? | Task tool spawns subagents that make their own calls | Same session context / Independent / Inherit parent rules |
-| 11 | What secret patterns should be detected? | NFR-5 requires redaction before LLM | AWS keys / JWT / API tokens / SSH keys / Passwords / Custom regex |
-| 12 | Is a daemon architecture necessary? | Adds complexity but improves latency | Daemon (persistent) / On-demand CLI (simpler) / Hybrid |
+| # | Question | Decision | Notes |
+|---|----------|----------|-------|
+| 1 | How should HET detect which CLI is calling it? | **CLI flag in hook config** | Hook command includes flag: `het evaluate --cli=claude-code`. Fallback: auto-detect from JSON structure |
+| 2 | Should rules support hot-reloading? | **Yes, required** | File watcher with 500ms debounce. Reload without daemon restart |
+| 3 | How should daemon communicate with CLI? | **Hybrid approach** | See architecture diagrams below |
+| 4 | What Windows-specific paths need protection? | **Support both platforms** | See cross-platform paths table below |
+| 5 | How to handle malformed input/rules? | **Return `ask`** | Never fail silently. Return `ask` with error context |
+| 6 | Should HET evaluate Glob/Grep/NotebookEdit tools? | **Yes, with sensitive folder rules** | Block glob/grep in `.ssh/`, `.aws/`, `~/.config/` etc. |
+| 7 | How to handle MCP tools? | **Evaluate like native tools** | See MCP scenarios below |
+| 8 | Should HET support PostToolUse hooks? | **Post-MVP (TODO)** | Defer to v2 for audit logging and learning |
+| 9 | How to handle concurrent tool evaluations? | **Queue with smart timeouts** | See concurrency design below |
+| 10 | How are subagent tool calls handled? | **Same hook system** | PreToolUse hooks fire for subagent calls. Foreground subagents pass prompts to user |
+| 11 | What secret patterns should be detected? | **Common patterns + customizable** | See secret patterns below |
+| 12 | Is a daemon architecture necessary? | **Yes (Hybrid)** | Multiple CLIs may connect. See architecture below |
+| 13 | Can system prompt be per-repo? | **Yes** | Via `.het/prompt.md` - see below |
+
+---
+
+### 9.1 Architecture Options
+
+**Option A: Direct stdin/stdout (No Daemon)**
+```
+┌─────────────┐     stdin      ┌─────────────┐
+│  Claude     │ ──────────────►│    HET      │
+│  Code CLI   │                │   (spawn)   │
+│             │ ◄──────────────│             │
+└─────────────┘     stdout     └─────────────┘
+```
+- Pros: Simple, stateless
+- Cons: Cold start (~100-500ms), no cache, no concurrency
+- Latency: High
+
+**Option B: HTTP Localhost Daemon**
+```
+┌─────────────┐                ┌─────────────┐
+│  Claude     │  HTTP POST     │    HET      │
+│  Code CLI   │ ──────────────►│   Daemon    │
+│             │  :8765/eval    │  (always on)│
+│             │ ◄──────────────│             │
+└─────────────┘  JSON response └─────────────┘
+
+┌─────────────┐                      │
+│  Copilot    │ ─────────────────────┘
+│  CLI        │  (same endpoint)
+└─────────────┘
+```
+- Pros: Language-agnostic, debuggable (curl), shared cache
+- Cons: Port management, firewall issues
+- Latency: Low (~5-20ms)
+
+**Option C: Unix Socket / Named Pipe**
+```
+┌─────────────┐                ┌─────────────┐
+│  Claude     │   Unix socket  │    HET      │
+│  Code CLI   │ ──────────────►│   Daemon    │
+│             │  /tmp/het.sock │             │
+└─────────────┘ ◄──────────────└─────────────┘
+```
+- Pros: Fastest, no port conflicts, secure
+- Cons: Platform differences (Unix vs Windows named pipe)
+- Latency: Lowest (~1-5ms)
+
+**Option D: Hybrid (RECOMMENDED)**
+```
+┌─────────────┐     stdin      ┌─────────────┐     socket     ┌─────────────┐
+│  Claude     │ ──────────────►│  het eval   │ ──────────────►│    HET      │
+│  Code CLI   │                │  (thin CLI) │                │   Daemon    │
+│             │ ◄──────────────│             │ ◄──────────────│             │
+└─────────────┘     stdout     └─────────────┘                └─────────────┘
+```
+- Hook calls `het evaluate` (stdin/stdout as hook protocol requires)
+- Thin CLI forwards to daemon via socket/HTTP
+- Falls back to direct evaluation if daemon unavailable
+- Latency: ~10-30ms
+
+---
+
+### 9.2 Cross-Platform Sensitive Paths
+
+| Category | Unix | Windows |
+|----------|------|---------|
+| Shell profiles | `.bashrc`, `.zshrc`, `.profile` | `$PROFILE`, `%USERPROFILE%\.bashrc` |
+| SSH | `~/.ssh/*` | `%USERPROFILE%\.ssh\*` |
+| AWS | `~/.aws/*` | `%USERPROFILE%\.aws\*` |
+| Git | `~/.gitconfig`, `.git/config` | `%USERPROFILE%\.gitconfig` |
+| NPM | `~/.npmrc` | `%USERPROFILE%\.npmrc` |
+| Environment | `/etc/environment`, `~/.env` | Registry `HKCU\Environment` |
+| Credentials | `~/.netrc`, `~/.config/gh/` | `%APPDATA%\gh\hosts.yml` |
+| System | `/etc/passwd`, `/etc/sudoers` | `%SYSTEMROOT%\System32\config\*` |
+
+---
+
+### 9.3 MCP Tool Scenarios
+
+MCP tools follow pattern `mcp__<server>__<tool>`:
+
+| Scenario | Example | Risk | Action |
+|----------|---------|------|--------|
+| File system MCP | `mcp__filesystem__write_file` | High | Evaluate like Write |
+| Database MCP | `mcp__postgres__execute_query` | High | Check for destructive SQL |
+| Memory MCP | `mcp__memory__store_secret` | Medium | Check for credentials |
+| External API | `mcp__slack__send_message` | Medium | Check for exfiltration |
+| Read-only MCP | `mcp__github__get_issues` | Low | Generally allow |
+
+**Rule example**:
+```yaml
+rules:
+  - name: mcp-filesystem-write
+    tool_pattern: "mcp__filesystem__write.*"
+    action: ask
+    reason: "MCP filesystem writes require approval"
+```
+
+---
+
+### 9.4 Concurrency & Timeout Design
+
+```
+┌─────────────────────────────────────────────────────┐
+│                    HET Daemon                        │
+│                                                      │
+│  ┌──────────┐   ┌──────────┐   ┌──────────┐        │
+│  │  Queue   │──►│ Workers  │──►│  Cache   │        │
+│  └──────────┘   └──────────┘   └──────────┘        │
+│       │                                              │
+│       ▼                                              │
+│  ┌─────────────────────────────────────────┐        │
+│  │ Timeout Logic:                          │        │
+│  │ • CLI timeout known → return ask early  │        │
+│  │ • Subagent mode → no timeout            │        │
+│  │ • Self-learning timeout adjustment      │        │
+│  └─────────────────────────────────────────┘        │
+└─────────────────────────────────────────────────────┘
+```
+
+**Timeout Strategy**:
+- Default: 10 seconds
+- If queue_depth × avg_time > remaining_timeout → return `ask` immediately
+- **Subagent mode**: Detect via `session_id` pattern, disable timeout for autonomous operation
+- **Self-learning**: Track actual times, adjust estimates
+
+---
+
+### 9.5 Secret Detection Patterns
+
+**Built-in** (enabled by default):
+
+| Type | Pattern Example |
+|------|-----------------|
+| AWS Access Key | `AKIA[0-9A-Z]{16}` |
+| AWS Secret | 40-char base64 after `aws_secret` |
+| GitHub Token | `ghp_[A-Za-z0-9]{36}` |
+| GitLab Token | `glpat-[A-Za-z0-9\-]{20}` |
+| JWT | `eyJ...\.eyJ...\.` |
+| Generic API Key | `api[_-]?key.*['"][A-Za-z0-9]{20,}` |
+| Private Key | `-----BEGIN.*PRIVATE KEY-----` |
+| Password in URL | `://[^:]+:([^@]+)@` |
+| Slack Token | `xox[baprs]-` |
+| Stripe Key | `sk_live_` |
+
+**Customization** (`~/.het/rules.yaml`):
+```yaml
+secrets:
+  custom_patterns:
+    - name: internal-api
+      pattern: "MYCOMPANY_[A-Z0-9]{32}"
+  disabled_patterns:
+    - generic-api-key  # too many false positives
+  redaction: "[REDACTED:{{type}}]"
+```
+
+---
+
+### 9.6 Per-Repository System Prompts
+
+**Location**: `.het/prompt.md` in repository root
+
+**Merge order**:
+1. Built-in base prompt
+2. Global `~/.het/prompt.md`
+3. Repo `.het/prompt.md`
+
+**Example** `.het/prompt.md`:
+```markdown
+## Repository-Specific Rules
+
+This is a financial services application. Extra scrutiny for:
+- Database operations (contains PII)
+- External API calls (compliance required)
+- `/data/` directory (sensitive exports)
+
+Always DENY:
+- Direct database DELETE (use soft-delete)
+- Writes to `/audit/` (immutable log)
+
+Default to ASK for:
+- npm package installation (security review)
+```
+
+**New Requirement**:
+
+| ID | Requirement | Priority |
+|----|-------------|----------|
+| FR-36 | Support per-repository system prompt customization via `.het/prompt.md` | Medium |
 
 ---
 
 ## 10. LLM Evaluation System Prompt
 
-The following is a draft system prompt for the Copilot SDK agent that evaluates tool safety:
+The following is the **base** system prompt for the Copilot SDK agent. This can be extended via `~/.het/prompt.md` (global) and `.het/prompt.md` (per-repo).
 
 ```
 You are a security evaluation agent for HET (Hook Evaluation Tool). Your role is to analyze tool invocations from AI coding assistants and determine if they are safe to execute.
