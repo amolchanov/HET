@@ -1,13 +1,8 @@
 # HET - Hook Evaluation Tool
 
-```
-  ██╗  ██╗███████╗████████╗
-  ██║  ██║██╔════╝╚══██╔══╝
-  ███████║█████╗     ██║      Security says НЕТ!
-  ██╔══██║██╔══╝     ██║      (HET = "NO" in Russian)
-  ██║  ██║███████╗   ██║   
-  ╚═╝  ╚═╝╚══════╝   ╚═╝   
-```
+![HET Logo](het-logo.png)
+
+**Security says НЕТ!** (HET = "NO" in Russian)
 
 A security evaluation service that integrates with AI coding assistants (Claude Code and GitHub Copilot) via PreToolUse hooks to assess whether tool invocations are safe to execute before they run.
 
