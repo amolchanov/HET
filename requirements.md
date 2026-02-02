@@ -52,7 +52,7 @@ HET is a security evaluation service that integrates with AI coding assistants (
 ### 3.3 Rule Configuration System
 
 **Per-Repository Rules:** The `.het/rules.yaml` file in a repository root is automatically detected and loaded. Rules can be configured to:
-- **Auto-detect** (default): Automatically load `.het/rules.yaml` when present
+- **Auto-detect** (default): Automatically load `.het/rules.yaml` when present (can we detect changes and refresh.)
 - **Opt-in mode**: Require explicit `het init` in repository to enable per-repo rules
 - **Disabled**: Ignore per-repo rules entirely (global rules only)
 
@@ -99,6 +99,24 @@ rules:
 | FR-24 | Return properly formatted response for GitHub Copilot | Critical |
 | FR-25 | Support `updatedInput` to modify tool arguments before execution | Medium |
 | FR-26 | Support `additionalContext` to inject warnings into Claude's context | Medium |
+
+**Input Format Differences:** The two CLIs use different JSON schemas. HET must normalize both formats internally:
+
+| Field | Claude Code | GitHub Copilot |
+|-------|-------------|----------------|
+| Working directory | `cwd` | `cwd` |
+| Tool name | `tool_name` | `toolName` |
+| Tool arguments | `tool_input` (object) | `toolArgs` (JSON string, requires parsing) |
+| Session ID | `session_id` | N/A |
+| Timestamp | N/A | `timestamp` |
+
+**Output Format Differences:**
+
+| Field | Claude Code | GitHub Copilot |
+|-------|-------------|----------------|
+| Decision | `hookSpecificOutput.permissionDecision` | `permissionDecision` |
+| Reason | `hookSpecificOutput.permissionDecisionReason` | `permissionDecisionReason` |
+| Modified input | `hookSpecificOutput.updatedInput` | Not supported |
 
 ### 3.5 External Information Retrieval
 
