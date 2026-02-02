@@ -19,8 +19,9 @@ HET is a security evaluation service that integrates with AI coding assistants (
 | **Deployment** | Local daemon | Always-running service for minimal latency; hooks block execution |
 | **Tech Stack** | TypeScript/Node.js | Native Copilot SDK support, npm ecosystem |
 | **Tool Coverage** | All tool types | Comprehensive security coverage |
-| **Logging** | Console output | Real-time visibility for debugging and monitoring |
+| **Logging** | Console output with verbosity levels | Configurable levels (debug/info/warn/error) for flexible debugging |
 | **Evaluation Engine** | Copilot Agent SDK | Leverage SDK's agenting capabilities for LLM-based tool evaluation |
+
 ---
 
 ## 3. Functional Requirements
@@ -50,7 +51,10 @@ HET is a security evaluation service that integrates with AI coding assistants (
 
 ### 3.3 Rule Configuration System
 
-**Note:** Per-repository rules require a `.het/rules.yaml` file in the repository root. The HET daemon automatically detects and loads this file when evaluating tools for that repository.
+**Per-Repository Rules:** The `.het/rules.yaml` file in a repository root is automatically detected and loaded. Rules can be configured to:
+- **Auto-detect** (default): Automatically load `.het/rules.yaml` when present
+- **Opt-in mode**: Require explicit `het init` in repository to enable per-repo rules
+- **Disabled**: Ignore per-repo rules entirely (global rules only)
 
 | ID | Requirement | Priority |
 |----|-------------|----------|
@@ -60,6 +64,7 @@ HET is a security evaluation service that integrates with AI coding assistants (
 | FR-17 | Support regex pattern matching in rules | High |
 | FR-18 | Support context conditions in rules (e.g., only apply if file exists) | Medium |
 | FR-19 | Support rule categories: `filesystem-danger`, `network-exfiltration`, `credential-exposure`, `system-modification`, `package-installation` | Medium |
+| FR-20 | Configurable per-repo rule loading mode (auto-detect/opt-in/disabled) | Medium |
 
 **Example Rule Format:**
 ```yaml
@@ -88,31 +93,31 @@ rules:
 
 | ID | Requirement | Priority |
 |----|-------------|----------|
-| FR-20 | Parse JSON input from Claude Code PreToolUse hooks | Critical |
-| FR-21 | Parse input from GitHub Copilot preToolUse hooks | Critical |
-| FR-22 | Return properly formatted JSON response for Claude Code (`hookSpecificOutput`) | Critical |
-| FR-23 | Return properly formatted response for GitHub Copilot | Critical |
-| FR-24 | Support `updatedInput` to modify tool arguments before execution | Medium |
-| FR-25 | Support `additionalContext` to inject warnings into Claude's context | Medium |
+| FR-21 | Parse JSON input from Claude Code PreToolUse hooks | Critical |
+| FR-22 | Parse input from GitHub Copilot preToolUse hooks | Critical |
+| FR-23 | Return properly formatted JSON response for Claude Code (`hookSpecificOutput`) | Critical |
+| FR-24 | Return properly formatted response for GitHub Copilot | Critical |
+| FR-25 | Support `updatedInput` to modify tool arguments before execution | Medium |
+| FR-26 | Support `additionalContext` to inject warnings into Claude's context | Medium |
 
 ### 3.5 External Information Retrieval
 
 | ID | Requirement | Priority |
 |----|-------------|----------|
-| FR-26 | Use Copilot SDK to evaluate tool safety via LLM | Critical |
-| FR-27 | Use web search (via SDK) to lookup unknown commands/tools | High |
-| FR-28 | Use file reading (via SDK) to analyze scripts referenced in commands | High |
-| FR-29 | Cache evaluation results for repeated commands (configurable TTL) | Medium |
+| FR-27 | Use Copilot SDK to evaluate tool safety via LLM | Critical |
+| FR-28 | Use web search (via SDK) to lookup unknown commands/tools | High |
+| FR-29 | Use file reading (via SDK) to analyze scripts referenced in commands | High |
+| FR-30 | Cache evaluation results for repeated commands (configurable TTL) | Medium |
 
 ### 3.6 User Experience
 
 | ID | Requirement | Priority |
 |----|-------------|----------|
-| FR-30 | CLI command `het test <tool_json>` to test evaluation without blocking | High |
-| FR-31 | CLI command `het explain <command>` to show risk analysis | High |
-| FR-32 | CLI command `het status` to check daemon health | Medium |
-| FR-33 | CLI command `het logs` to view recent evaluation decisions | Medium |
-| FR-34 | Support project/session trust mode to reduce prompts for known-safe repos | Medium |
+| FR-31 | CLI command `het test <tool_json>` to test evaluation without blocking | High |
+| FR-32 | CLI command `het explain <command>` to show risk analysis | High |
+| FR-33 | CLI command `het status` to check daemon health | Medium |
+| FR-34 | CLI command `het logs` to view recent evaluation decisions | Medium |
+| FR-35 | Support project/session trust mode to reduce prompts for known-safe repos | Medium |
 
 ---
 
