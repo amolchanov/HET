@@ -1,0 +1,263 @@
+# HET (Hook Evaluation Tool) - Requirements Specification
+
+## 1. Overview
+
+HET is a security evaluation service that integrates with AI coding assistants (Claude Code and GitHub Copilot) via PreToolUse hooks to assess whether tool invocations are safe to execute before they run.
+
+**Primary Goal:** Prevent AI assistants from executing harmful commands, writing dangerous files, or leaking sensitive information.
+
+**Target CLIs:**
+- Claude Code CLI (https://code.claude.com/docs/en/hooks)
+- GitHub Copilot CLI (https://docs.github.com/en/copilot/concepts/agents/coding-agent/about-hooks)
+
+---
+
+## 2. Architectural Decisions
+
+| Decision | Choice | Rationale |
+|----------|--------|-----------|
+| **Deployment** | Local daemon | Always-running service for minimal latency; hooks block execution |
+| **Tech Stack** | TypeScript/Node.js | Native Copilot SDK support, npm ecosystem |
+| **Tool Coverage** | All tool types | Comprehensive security coverage |
+| **Logging** | Console output | Real-time visibility for debugging and monitoring |
+| **Evaluation Engine** | Copilot Agent SDK | Leverage SDK's agenting capabilities for LLM-based tool evaluation |
+---
+
+## 3. Functional Requirements
+
+### 3.1 Core Evaluation Engine
+
+| ID | Requirement | Priority |
+|----|-------------|----------|
+| FR-1 | Evaluate Bash/shell commands for safety before execution | Critical |
+| FR-2 | Evaluate file Write operations (detect writes to sensitive paths like `.bashrc`, `.ssh/`, etc.) | Critical |
+| FR-3 | Evaluate file Edit operations for dangerous modifications | Critical |
+| FR-4 | Evaluate WebFetch/WebSearch for data exfiltration attempts | High |
+| FR-5 | Evaluate Task/subagent spawning for privilege escalation | High |
+| FR-6 | Evaluate Read operations for access to sensitive files | Medium |
+| FR-7 | Support multi-language script analysis (bash, PowerShell, Python) | High |
+| FR-8 | Detect and flag credential/secret exposure in commands | Critical |
+
+### 3.2 Decision Engine
+
+| ID | Requirement | Priority |
+|----|-------------|----------|
+| FR-9 | Three-tier decision model: `allow`, `deny`, `ask` (prompt user) | Critical |
+| FR-10 | Provide clear, actionable reasons for all denial decisions | Critical |
+| FR-11 | Support "deny always" persistent blocklist per-repo and global | High |
+| FR-12 | Support "allow always" persistent allowlist per-repo and global | High |
+| FR-13 | Return confidence score (0-1) with each decision | Medium |
+
+### 3.3 Rule Configuration System
+
+**Note:** Per-repository rules require a `.het/rules.yaml` file in the repository root. The HET daemon automatically detects and loads this file when evaluating tools for that repository.
+
+| ID | Requirement | Priority |
+|----|-------------|----------|
+| FR-14 | Load global rules from `~/.het/rules.yaml` | Critical |
+| FR-15 | Load per-repository rules from `.het/rules.yaml` | Critical |
+| FR-16 | Rule precedence: repository rules override global rules | High |
+| FR-17 | Support regex pattern matching in rules | High |
+| FR-18 | Support context conditions in rules (e.g., only apply if file exists) | Medium |
+| FR-19 | Support rule categories: `filesystem-danger`, `network-exfiltration`, `credential-exposure`, `system-modification`, `package-installation` | Medium |
+
+**Example Rule Format:**
+```yaml
+version: 1
+rules:
+  - name: block-recursive-delete
+    tool: Bash
+    pattern: "rm\\s+-rf?\\s+/"
+    action: deny
+    reason: "Recursive delete at root is dangerous"
+
+  - name: block-ssh-key-modification
+    tool: Write
+    path_pattern: ".*\\.ssh/.*"
+    action: deny
+    reason: "Modification of SSH configuration blocked"
+
+  - name: ask-git-force-push
+    tool: Bash
+    pattern: "git\\s+push.*--force"
+    action: ask
+    reason: "Force push can overwrite remote history"
+```
+
+### 3.4 CLI Integration Layer
+
+| ID | Requirement | Priority |
+|----|-------------|----------|
+| FR-20 | Parse JSON input from Claude Code PreToolUse hooks | Critical |
+| FR-21 | Parse input from GitHub Copilot preToolUse hooks | Critical |
+| FR-22 | Return properly formatted JSON response for Claude Code (`hookSpecificOutput`) | Critical |
+| FR-23 | Return properly formatted response for GitHub Copilot | Critical |
+| FR-24 | Support `updatedInput` to modify tool arguments before execution | Medium |
+| FR-25 | Support `additionalContext` to inject warnings into Claude's context | Medium |
+
+### 3.5 External Information Retrieval
+
+| ID | Requirement | Priority |
+|----|-------------|----------|
+| FR-26 | Use Copilot SDK to evaluate tool safety via LLM | Critical |
+| FR-27 | Use web search (via SDK) to lookup unknown commands/tools | High |
+| FR-28 | Use file reading (via SDK) to analyze scripts referenced in commands | High |
+| FR-29 | Cache evaluation results for repeated commands (configurable TTL) | Medium |
+
+### 3.6 User Experience
+
+| ID | Requirement | Priority |
+|----|-------------|----------|
+| FR-30 | CLI command `het test <tool_json>` to test evaluation without blocking | High |
+| FR-31 | CLI command `het explain <command>` to show risk analysis | High |
+| FR-32 | CLI command `het status` to check daemon health | Medium |
+| FR-33 | CLI command `het logs` to view recent evaluation decisions | Medium |
+| FR-34 | Support project/session trust mode to reduce prompts for known-safe repos | Medium |
+
+---
+
+## 4. Non-Functional Requirements
+
+### 4.1 Performance
+
+| ID | Requirement | Target |
+|----|-------------|--------|
+| NFR-1 | Hook response latency for rule-based decisions | < 100ms |
+| NFR-2 | Hook response latency for LLM-based decisions | < 5 seconds |
+| NFR-3 | Daemon memory footprint | < 100MB |
+| NFR-4 | Graceful timeout handling (default: allow on timeout) | 10 seconds max |
+
+### 4.2 Security
+
+| ID | Requirement | Priority |
+|----|-------------|----------|
+| NFR-5 | Detect and redact secrets/credentials before sending to cloud LLM | Critical |
+| NFR-6 | Audit log all evaluation decisions with timestamps | High |
+| NFR-7 | Secure storage for persistent allow/deny lists | High |
+| NFR-8 | No execution of evaluated commands within the service | Critical |
+
+### 4.3 Reliability
+
+| ID | Requirement | Priority |
+|----|-------------|----------|
+| NFR-9 | Daemon auto-restart on crash | High |
+| NFR-10 | Graceful degradation if Copilot SDK unavailable (fall back to rules-only) | High |
+| NFR-11 | Health check endpoint for monitoring | Medium |
+
+### 4.4 Installation & Setup
+
+| ID | Requirement | Priority |
+|----|-------------|----------|
+| NFR-12 | Single command installation via npm (`npm install -g het`) | High |
+| NFR-13 | Auto-setup Claude Code hook configuration | High |
+| NFR-14 | Auto-setup GitHub Copilot hook configuration | High |
+| NFR-15 | Interactive setup wizard for first-time configuration | Medium |
+
+---
+
+## 5. Tool-Specific Evaluation Criteria
+
+### 5.1 Bash Commands
+- Recursive deletions (`rm -rf`)
+- Permission changes (`chmod 777`, `chown`)
+- System service modifications
+- Package installation from untrusted sources
+- Network data exfiltration (`curl`, `wget` with POST)
+- Environment variable exposure
+- Credential file access
+
+### 5.2 Write Operations
+- Sensitive paths: `.bashrc`, `.zshrc`, `.profile`, `.ssh/*`, `.gitconfig`
+- Executable files in PATH
+- System configuration files
+- Credential/secret files
+
+### 5.3 Edit Operations
+- Same as Write, plus:
+- Detection of malicious code injection
+- Removal of security controls
+
+### 5.4 WebFetch/WebSearch
+- Requests containing local file content
+- Requests to suspicious domains
+- Data exfiltration patterns
+
+### 5.5 Task/Subagent
+- Privilege escalation attempts
+- Spawning agents with elevated permissions
+
+---
+
+## 6. Integration Points
+
+### 6.1 Claude Code Hook Configuration
+```json
+{
+  "hooks": {
+    "PreToolUse": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "het evaluate"
+          }
+        ]
+      }
+    ]
+  }
+}
+```
+
+### 6.2 Copilot SDK Integration
+```typescript
+import { CopilotClient } from '@github/copilot-sdk';
+
+const client = new CopilotClient();
+const session = await client.createSession({
+  model: 'claude-3-5-sonnet',
+  systemMessage: SECURITY_EVALUATION_PROMPT,
+  tools: [fileReadTool, webSearchTool]
+});
+```
+
+---
+
+## 7. Resolved Design Decisions
+
+| # | Question | Decision | Rationale |
+|---|----------|----------|-----------|
+| 1 | How to handle hook timeout? | **Default allow** | Prioritize UX; avoid blocking user workflows |
+| 2 | Should secrets be redacted before LLM evaluation? | **Yes, always redact** | Critical for security; detect and mask tokens, passwords, API keys |
+| 3 | Should service integrate with existing security tools? | Post-MVP | YARA, ClamAV integration deferred |
+| 4 | Multi-user/enterprise support needed? | Post-MVP | Focus on single-user first |
+
+---
+
+## 8. MVP vs Post-MVP
+
+### MVP Scope
+- Local daemon (TypeScript/Node.js)
+- Copilot SDK integration for LLM evaluation
+- All tool type evaluation (Bash, Write, Edit, WebFetch, Task)
+- Rule-based pre-filtering
+- Global + per-repo rules (YAML)
+- Three-tier decisions (allow/deny/ask)
+- Claude Code + Copilot CLI integration
+- Basic CLI (`het test`, `het explain`, `het status`)
+- Audit logging
+
+### Post-MVP
+- Session/project trust mode
+- Learning from user decisions
+- Enterprise policy integration
+- Automatic rule updates
+- Integration with security scanning tools
+- Browser extension for web-based IDEs
+
+---
+
+## 9. References
+
+- [GitHub Copilot SDK](https://github.com/github/copilot-sdk)
+- [Claude Code Hooks Documentation](https://code.claude.com/docs/en/hooks)
+- [GitHub Copilot Hooks Documentation](https://docs.github.com/en/copilot/concepts/agents/coding-agent/about-hooks)
