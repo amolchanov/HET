@@ -71,6 +71,64 @@ het install --claude
 het install --copilot
 ```
 
+### Manual Hook Configuration
+
+If you prefer to configure hooks manually instead of using `het install`:
+
+#### Claude Code CLI
+
+Add to `~/.claude/settings.json`:
+
+```json
+{
+  "hooks": {
+    "PreToolUse": [
+      {
+        "matcher": {},
+        "hooks": [
+          {
+            "type": "command",
+            "command": "het evaluate --cli=claude-code"
+          }
+        ]
+      }
+    ]
+  }
+}
+```
+
+#### GitHub Copilot CLI
+
+Create `~/.copilot/hooks/preToolUse.js`:
+
+```javascript
+#!/usr/bin/env node
+const { execSync } = require('child_process');
+
+let input = '';
+process.stdin.setEncoding('utf8');
+
+process.stdin.on('data', (chunk) => {
+  input += chunk;
+});
+
+process.stdin.on('end', () => {
+  try {
+    const result = execSync('het evaluate --cli=copilot', {
+      input,
+      encoding: 'utf8',
+      timeout: 30000,
+    });
+    if (result) process.stdout.write(result);
+    process.exit(0);
+  } catch (error) {
+    process.exit(0); // Fail open
+  }
+});
+```
+
+On Unix/macOS, make it executable: `chmod +x ~/.copilot/hooks/preToolUse.js`
+
 ### 2. Start the Daemon
 
 ```bash
